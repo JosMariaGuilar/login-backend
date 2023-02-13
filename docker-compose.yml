@@ -2,13 +2,13 @@ version: '3.8'
 services:
   dev-db:
     image: postgres:15-alpine
-    container_name: postgresdb
+    container_name: postgres_db
     ports:
-      - 9999:5432
+      - 2345:5432
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: 1234
-      POSTGRES_DB: assuresoftdb
+      POSTGRES_PASSWORD: maria17
+      POSTGRES_DB: assuresoft
     networks:
       - assuresoftnet
 networks:
