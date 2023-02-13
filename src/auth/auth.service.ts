@@ -1,52 +1,64 @@
 import { ForbiddenException, Injectable } from "@nestjs/common";
 import { PrismaService } from '../prisma/prisma.service';
-import { AuthDTO } from "./dto";
-import { User } from '@prisma/client'
+import { AuthDTO, CreateUserDto } from "./dto";
+import * as argon from "argon2";
+import { Prisma } from "@prisma/client";
 
 @Injectable({})
 export class AuthService {
 
   constructor(private prisma: PrismaService) {}
 
-  async signup() {
-    const userJoseMaria = await this.prisma.user.create({
-      data: {
-        username: 'josemaria',
-        hash: 'maria17'
-      }
-    });
+  async signup(dto: CreateUserDto) {
+    // here doing hash
+    const passwordEncoded = await argon.hash(dto.password);
+  
+    try {
+      const user = await this.prisma.user.create({
+        data: {
+          firstName: dto.firstName,
+          lastName: dto.lastName,
+          username: dto.username,
+          hash: passwordEncoded
+        }
+      });
 
-    const userDaniel = await this.prisma.user.create({
-      data: {
-        username: 'daniel',
-        hash: 'daniel17'
-      }
-    });
+      delete user.hash;
 
-    const userCecilia = await this.prisma.user.create({
-      data: {
-        username: 'cecilia',
-        hash: 'cecilia17'
-      }
-    });
-
-    return [userJoseMaria, userDaniel, userCecilia];
+      return user;
+    
+    } catch (error) {
+        if (error instanceof Prisma.PrismaClientKnownRequestError) {
+          if (error.code === 'P2002') {
+            throw new ForbiddenException('Credentials taken');
+          }
+        }
+        throw error;
+    }
   }
 
   async login(dto: AuthDTO) {
-    const userFetched = await this.prisma.user.findFirst({
+    // search user
+    const userFetched = await this.prisma.user.findUnique({
       where: {
-        username: dto.username as string
+        username: dto.username
       },
     })
-
+    
+    // user not found
     if (!userFetched) {
       throw new ForbiddenException('Credentials incorrect');
     }
 
-    if (userFetched.hash !== dto.password) {
-      throw new ForbiddenException('Credentials incorrect');
+    // comparing password
+    const passwordMatches = await argon.verify(userFetched.hash, dto.password);
+    
+    // if password incorrect throw exception
+    if (!passwordMatches) {
+      throw new ForbiddenException('Password incorrect');
     }
+
+    delete userFetched.hash;
 
     return userFetched;
   }
