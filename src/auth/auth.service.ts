@@ -10,8 +10,6 @@ export class AuthService {
   constructor(private prisma: PrismaService) {}
 
   async signup(dto: CreateUserDto) {
-    console.log(dto);
-
     // here doing hash
     const passwordEncoded = await argon.hash(dto.password);
   
@@ -40,19 +38,27 @@ export class AuthService {
   }
 
   async login(dto: AuthDTO) {
-    const userFetched = await this.prisma.user.findFirst({
+    // search user
+    const userFetched = await this.prisma.user.findUnique({
       where: {
-        username: dto.username as string
+        username: dto.username
       },
     })
-
+    
+    // user not found
     if (!userFetched) {
       throw new ForbiddenException('Credentials incorrect');
     }
 
-    if (userFetched.hash !== dto.password) {
-      throw new ForbiddenException('Credentials incorrect');
+    // comparing password
+    const passwordMatches = await argon.verify(userFetched.hash, dto.password);
+    
+    // if password incorrect throw exception
+    if (!passwordMatches) {
+      throw new ForbiddenException('Password incorrect');
     }
+
+    delete userFetched.hash;
 
     return userFetched;
   }
